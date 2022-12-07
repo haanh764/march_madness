@@ -1,0 +1,11 @@
+{
+    "dev": {
+        "app_function": "app.app",
+        "profile_name": "default",
+        "project_name": "march-madness",
+        "runtime": "python3.9",
+        "s3_bucket": "dashboard-march-madness",
+        "aws_region": "eu-central-1",
+        "environment_variables": {"DASH_REQUESTS_PATHNAME_PREFIX": "/dev/"}
+    }
+}
