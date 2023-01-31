@@ -2,7 +2,7 @@
 ##### 
 This repository contains source code for our ELT pipeline based on AWS. AWS S3 is used as data lake, there are 3 separated buckets serving: 
 - Source data
-- ML models and require data for ML model
+- ML models and required data for ML model
 - Dashboard data and dashboard content
 
 ![buckets.png](./img/buckets.png)
@@ -168,4 +168,12 @@ aws_secret_access_key = ************************
 --- To be filled ----
 
 ### 6. Machine Learning model
---- To be filled ----
+
+#### Creating model
+To create a new model, it is necessary to run train.py script located in ml folder. Note that running this script requires providing credentials for boto3 connection. The script will fetch result files from march-madness-src bucket and divide the data so that all years before 2006 are used just as data aggregation about teams the last four years are for validation and testing. Note that the code is by default run on a GPU and will fail if no GPU instance exists. Running this code will generate a model checkpoint, a scaler that should be used for new data, as well as a new file that contains data aggregated about all matches the model had access to so far that needs to be used for predictions on any new matches. The script will also automatically generate predictions for the matches in the test set (last two years). Note that the winning/losing team is anonymized to Team 1 and Team 2 (assigned randomly) in the new file.
+
+#### Making predcitions on new data
+To make a prediction for a match that did not happen yet, you can use predict_match function located in handle_new_data script. The function needs s3_client, team IDs, season, day, city ID, and location which is a letter that stays whether this game is a home advantage for team provided as team 1, as well as access to the data stored in the march-madness-models bucket. To make predictions on new file with match results, a script named handle_new_data has a function called handle_new_data that takes in a timestamp that was used for creating files with new results. Running this file will load the model, create predictions and update the data aggregation used for predictions. Note that this process may be slow as all predictions try to use as much match results as possible while not seeing the future, so it runs sequentially. 
+
+#### Changing the model
+All the model parameters, including training ones can be accessed in the model.py script. Note that any changes to the model require creating a new model from scratch.
