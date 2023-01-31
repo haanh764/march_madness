@@ -161,3 +161,11 @@ aws_secret_access_key = ************************
 - Check this link to see the update dashboard: `https://z8eqecfs2f.execute-api.eu-central-1.amazonaws.com/dev`
 
 
+### 4. Data Transformation
+--- To be filled ----
+
+### 5. Dashboard
+--- To be filled ----
+
+### 6. Machine Learning model
+--- To be filled ----
