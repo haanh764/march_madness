@@ -5,11 +5,11 @@ This repository contains source code for our ELT pipeline based on AWS. AWS S3 i
 - ML models and require data for ML model
 - Dashboard data and dashboard content
 
-![image.png](attachment:9718c702-7eaa-4cc4-8b77-bb922ee4024c.png)
+![buckets.png](attachment:3e703e4b-5a4d-48a7-ae5d-bba43fe3a876.png)
 
 The whole architecture is as followed
 
-![image.png](attachment:8fabfdaa-ba10-4ec1-8d5d-d8d64d4d2e53.png)
+![arch.png](attachment:b5914ed5-45ce-432c-966d-1e7144551b61.png)
 
 ### 1. Main Components
 #### AWS Components
