@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css?family=Muli&display=swap');
+@import url('https://fonts.googleapis.com/css?family=Quicksand&display=swap');
+
+:root {
+    --default-font-size: 16px; 
+    --default-heading-font:  'Quicksand', sans-serif;
+    --default-body-font: 'Muli', sans-serif;
+    --default-font-color: #222; 
+}
+
+body {
+    font-family: var(--default-heading-font);
+    color: var(--default-font-color);
+    font-size: var(--default-font-size); 
+    line-height: 1.5;
+}
+
+h1 {
+    font-family: var(--default-body-font);
+    font-size: calc(var(--default-font-size) * 2); 
+}
