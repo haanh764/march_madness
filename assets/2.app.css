@@ -17,5 +17,41 @@ body {
 
 h1 {
     font-family: var(--default-body-font);
+    font-size: calc(var(--default-font-size) * 3); 
+}
+
+
+h2 {
+    font-family: var(--default-body-font);
     font-size: calc(var(--default-font-size) * 2); 
+}
+
+h3 {
+    font-family: var(--default-body-font);
+    font-size: calc(var(--default-font-size) * 1.5); 
+}
+
+.hero__logo {
+    max-height: 80px;
+    padding: 10px; 
+}
+
+.circle {
+    width: 50px; 
+    height: 50px;
+    background-color: #bbb;
+    border-radius: 50%;
+    margin: 10px; 
+    line-height: 50px; 
+    text-align: center; 
+}
+
+.circle--gray {
+    background-color: #bbb;
+    color: white; 
+}
+
+.circle--blue {
+    background-color: blue;
+    color: white; 
 }
