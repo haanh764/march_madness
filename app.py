@@ -17,15 +17,19 @@ dash_app = Dash(__name__, suppress_callback_exceptions=True)
 '''
 
 AWS_S3_BUCKET_SRC = "march-madness-src"
+AWS_S3_BUCKET_TRANSFORMED = "dashboard-march-madness"
 FILE_KEY_PATH_SRC = "MDataFiles_Stage2/MSecondaryTourneyTeams.csv"
 s3_client = boto3.client("s3")
+
 event_seasons = [2015, 2016, 2017, 2018, 2019]
 used_seasons = event_seasons
 is_all_time = False
 limited_memory=True
+data_length = 0
 
 if limited_memory:
     used_seasons = used_seasons[len(used_seasons)-2:]
+    data_length = 10000
 
 def _get_csv_file(file_key_path_src=FILE_KEY_PATH_SRC, aws_s3_bucket_src=AWS_S3_BUCKET_SRC):
     response = s3_client.get_object(Bucket=aws_s3_bucket_src, Key=file_key_path_src)
@@ -35,6 +39,8 @@ def _get_csv_file(file_key_path_src=FILE_KEY_PATH_SRC, aws_s3_bucket_src=AWS_S3_
     if status == 200:
         print(f"Successful S3 get_object response from {file_key_path_src}. Status - {status}")
         df = pd.read_csv(response.get("Body"))
+        if data_length:
+            df = df[:data_length]
     else:
         print(f"Unsuccessful S3 get_object response. Status - {status}")
     return df
@@ -58,18 +64,22 @@ def _get_mevents(season):
 df = px.data.iris() 
 fig = px.scatter(df, x="sepal_width", y="sepal_length")
 
-
-mevents = _get_mevents(None)
+# mevents = _get_mevents(None)
 mseasons = _get_csv_file("MDataFiles_Stage2/MSeasons.csv")
 mregularseasons = _get_csv_file("MDataFiles_Stage2/MRegularSeasonCompactResults.csv")
 mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
 mplayers = _get_csv_file("2020DataFiles/2020-Mens-Data/MPlayers.csv")
 predictions = _get_csv_file("winner_predictor/predictions/MatchPredictions.csv", "march-madness-models")
 team_data = _get_csv_file("winner_predictor/supplementary_data/TeamData.csv", "march-madness-models")
-mtourney_detailed_results = _get_csv_file('2020DataFiles/2020-Mens-Data/MDataFiles_Stage1/MNCAATourneyDetailedResults.csv')
+# mtourney_detailed_results = _get_csv_file('2020DataFiles/2020-Mens-Data/MDataFiles_Stage1/MNCAATourneyDetailedResults.csv')
 mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
 mtourney_results = _get_csv_file("MDataFiles_Stage2/MNCAATourneyCompactResults.csv")
 
+meventsteams_transformed = _get_csv_file('mEventsTeams.csv', 'dashboard-march-madness')
+mteams_transformed = _get_csv_file('mTeams.csv', 'dashboard-march-madness')
+mplayerteams_transformed = _get_csv_file('mPlayerTeams.csv', 'dashboard-march-madness')
+mtourneyresultsteams_transformed = _get_csv_file('mTourneyResultsTeams.csv', 'dashboard-march-madness')
+mseasonresultsteams_transformed = _get_csv_file('mSeasonResultsTeams.csv', 'dashboard-march-madness')
 
 def _get_most_tournament_wins_chart(season):
     wteam = mtourney_results.rename(columns={'WTeamID':'TeamID'})
@@ -79,7 +89,6 @@ def _get_most_tournament_wins_chart(season):
     wteam_merged = wteam_merged.sort_values(by="Count", ascending=False)[:5]
     fig = px.bar(wteam_merged, x="TeamName", y='Count')
     return fig
-
 
 def _get_most_championship_wins_chart(season):
     wteam = mtourney_results.rename(columns={'WTeamID':'TeamID'})
@@ -93,30 +102,15 @@ def _get_most_championship_wins_chart(season):
     return fig
 
 def _get_area_bar_chart(season):
-    area_mapping = {0: np.nan,
-                1: 'under basket',
-                2: 'in the paint',
-                3: 'inside right wing',
-                4: 'inside right',
-                5: 'inside center',
-                6: 'inside left',
-                7: 'inside left wing',
-                8: 'outside right wing',
-                9: 'outside right',
-                10: 'outside center',
-                11: 'outside left',
-                12: 'outside left wing',
-                13: 'backcourt'}
-    mevents_area = mevents
+    mevents_area = meventsteams_transformed
     if season and season in used_seasons:
         mevents_area = mevents_area.loc[mevents_area['Season'] == season]
         is_all_time = False
     else:
         is_all_time = True
-    mevents_area['AreaName'] = mevents_area['Area'].map(area_mapping)
-    mevents_area = mevents_area.value_counts().groupby('AreaName').agg('count').to_frame('Count').reset_index()
+    mevents_area = mevents_area.value_counts().groupby('Area').agg('count').to_frame('Count').reset_index()
     mevents_area = mevents_area.sort_values(by="Count", ascending=False)[:5]
-    fig = px.bar(mevents_area, x="AreaName", y='Count')
+    fig = px.bar(mevents_area, x="Area", y='Count')
     return fig
 
 
@@ -148,15 +142,15 @@ def _get_players(team_id):
     return players
 
 def _get_events_statistics(season):    
-    mevents_statistics = mevents
+    mevents_statistics = meventsteams_transformed
     if season and season in used_seasons:
         mevents_statistics = mevents_statistics.loc[mevents_statistics['Season'] == season]
         is_all_time = False
     else:
         is_all_time = True
-    mevents_statistics = mevents_statistics.value_counts().groupby('EventType').agg('count').to_frame('Count').reset_index()
+    mevents_statistics = mevents_statistics.value_counts().groupby('Event Type').agg('count').to_frame('Count').reset_index()
     mevents_statistics= mevents_statistics.sort_values(by='Count', ascending=False)[:5]
-    events = dict(zip(mevents_statistics.EventType, mevents_statistics.Count))
+    events = dict(zip(mevents_statistics['Event Type'], mevents_statistics.Count))
     stats = [ _get_event_statistic_component(evKey, events[evKey]) for evKey in events.keys()]
     return stats
 
@@ -171,55 +165,16 @@ def _get_event_statistic_component(event, count):
         ])
     ])
 
-def _get_player_most_events(player_id, season=selected_season): 
-    mevents_most = mevents
+def _get_player_events(player_id, season=selected_season): 
+    mevents_most = meventsteams_transformed
     if season and season in used_seasons:
         mevents_most = mevents_most.loc[mevents_most['Season'] == season]
         is_all_time = False
     else:
         is_all_time = True
-    mevents_merged = mevents_most.merge(mplayers,
-              how='left',
-              left_on='EventPlayerID',
-              right_on='PlayerID')
-    mevents_merged = mevents_merged.loc[mevents_merged['PlayerID'] == player_id]
-    mevents_merged = mevents_merged.value_counts().groupby('EventType').agg('count').to_frame('Count').reset_index()
-    mevents_merged= mevents_merged.sort_values(by='Count', ascending=False)[:5]
-    event_types = list(mevents_merged['EventType'])
-    return event_types
-    
-def _get_player_least_events(player_id, season=selected_season):
-    mevents_least = mevents
-    if season and season in used_seasons:
-        mevents_least = mevents_least.loc[mevents_least['Season'] == season]
-        is_all_time = False
-    else:
-        is_all_time = True
-    mevents_merged = mevents_least.merge(mplayers,
-              how='left',
-              left_on='EventPlayerID',
-              right_on='PlayerID')
-    mevents_merged = mevents_merged.loc[mevents_merged['PlayerID'] == player_id]
-    mevents_merged = mevents_merged.value_counts().groupby('EventType').agg('count').to_frame('Count').reset_index()
-    mevents_merged= mevents_merged.sort_values(by='Count', ascending=True)[:5]
-    event_types = list(mevents_merged['EventType'])
-    return event_types
-
-def _get_player_num_events(player_id, season=selected_season):
-    mevents_num = mevents
-    if season and season in used_seasons:
-        mevents_num = mevents_num.loc[mevents_num['Season'] == season]
-        is_all_time = False
-    else:
-        is_all_time = True
-    mevents_merged = mevents_num.merge(mplayers,
-              how='left',
-              left_on='EventPlayerID',
-              right_on='PlayerID')
-    mevents_merged = mevents_merged.loc[mevents_merged['PlayerID'] == player_id]
-    mevents_merged = mevents_merged.value_counts().groupby('EventType').agg('count').to_frame('Count').reset_index()
-    total = mevents_merged['Count'].sum()
-    return total
+    mevents_merged = mevents_most.loc[mevents_most['EventPlayerID'] == player_id]
+    mevents_merged = mevents_merged.value_counts().groupby('Event Type').agg('count').to_frame('Count').reset_index()
+    return mevents_merged
 
 def _get_actual_winners():
     games_stats = []
@@ -316,11 +271,16 @@ def _get_prediction_component(predictions_list=[]):
 )
 def _on_season_dropdown_change(value, children):
     selected_season = value
-    _team_options = _get_teams(value)
-    _most_tournament_wins_chart = _get_most_tournament_wins_chart(value)
-    _events_statistics = _get_events_statistics(value) # will get killed because it consumes too much ram 
-    _predictions = _get_predictions_list(value)
-    _area_bar_chart = _get_area_bar_chart(value)
+    # _team_options = _get_teams(value)
+    # _most_tournament_wins_chart = _get_most_tournament_wins_chart(value)
+    # _events_statistics = _get_events_statistics(value) # will get killed because it consumes too much ram 
+    # _predictions = _get_predictions_list(value)
+    # _area_bar_chart = _get_area_bar_chart(value)
+    _most_tournament_wins_chart = fig
+    _events_statistics = []
+    _predictions = []
+    _area_bar_chart = []
+    _team_options = []
     return [f'Season {value}', _most_tournament_wins_chart,  _events_statistics, _predictions, _area_bar_chart, _team_options, '', '']
 
 
@@ -336,7 +296,6 @@ def _on_team_dropdown_change(value):
         return dash.no_update
     else:
         print("team selected----------------------------------------")
-        mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
         team_id = mteams.loc[mteams['TeamName'] == value]
         _player_options = _get_players(team_id['TeamID'].values[0])
         return _player_options
@@ -355,17 +314,22 @@ def _on_player_dropdown_change(value, selected_team):
         return dash.no_update
     else:
         print("player selected----------------------------------------")
-        mplayers_clone = mplayers.merge(mteams, on="TeamID")        
-        mplayers_clone = mplayers_clone.loc[mplayers_clone['TeamName'] == selected_team]
-        mplayers_clone['FullName'] = mplayers_clone['FirstName']+" "+mplayers_clone['LastName']
-        player_id = mplayers_clone.loc[mplayers_clone['FullName'] == value]['TeamID'].values[0]
+        # mplayers_clone = mplayers.merge(mteams, on="TeamID")        
+        # mplayers_clone = mplayers_clone.loc[mplayers_clone['TeamName'] == selected_team]
+        # mplayers_clone['FullName'] = mplayers_clone['FirstName']+" "+mplayers_clone['LastName']
+#         player_id = mplayers_clone.loc[mplayers_clone['FullName'] == value]['TeamID'].values[0]
+#         player_events = _get_player_events(player_id, selected_season)
+#         most_event = list(player_events.sort_values(by="Count", ascending=False)[:5])
+#         if len(most_event):
+#             most_event = most_event[0]
+#         least_event = list(player_events.sort_values(by="Count", ascending=True)[:5])
+#         if len(least_event):
+#             least_event = least_event[0]
+#         num_event = player_events['Count'].sum()
+#         print(most_event, least_event, num_event)
         
-        most_event = _get_player_most_events(player_id, selected_season)
-        least_event = _get_player_least_events(player_id, selected_season)
-        num_event = _get_player_num_events(player_id, selected_season)
-        
-        print(most_event, least_event, num_event)
-        return [most_event, least_event, num_event]
+#         return [most_event, least_event, num_event]
+        return [0, 0, 0]
 
 
 '''
@@ -515,4 +479,14 @@ app = dash_app.server.wsgi_app
 
 
 if __name__ == '__main__':
+    selected_season = 2020
+    print(_get_teams(2020))
+    print(_get_most_tournament_wins_chart(2020))
+    print(_get_players('1100'))
+    print(_get_events_statistics(2020))
+    print(_get_player_events(1000, 2000))
+    print(_get_predictions_list(2020))
+    print(_on_season_dropdown_change(2020, []))
+    print(_on_team_dropdown_change("Illinois"))
+    print(_on_player_dropdown_change("Alex Austin", "Illinois"))
     dash_app.run_server(debug=True)
