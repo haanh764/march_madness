@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime, date
 import io 
 import boto3
+import numpy as np
 import pandas as pd
 from dash.exceptions import PreventUpdate
 
@@ -67,6 +68,29 @@ def _get_most_championship_wins_chart(season):
     fig.show()
     return fig
 
+def _get_area_bar_chart(season):
+    area_mapping = {0: np.nan,
+                1: 'under basket',
+                2: 'in the paint',
+                3: 'inside right wing',
+                4: 'inside right',
+                5: 'inside center',
+                6: 'inside left',
+                7: 'inside left wing',
+                8: 'outside right wing',
+                9: 'outside right',
+                10: 'outside center',
+                11: 'outside left',
+                12: 'outside left wing',
+                13: 'backcourt'}
+    mevents = _get_mevents(season)
+    mevents['AreaName'] = mevents['Area'].map(area_mapping)
+    mevents = mevents.value_counts().groupby('AreaName').agg('count').to_frame('Count').reset_index()
+    mevents = mevents.sort_values(by="Count", ascending=False)[:5]
+    fig = px.bar(mevents, x="AreaName", y='Count')
+    fig.show()
+    return fig
+
 
 '''
 ===================================================DATA================================================
@@ -79,6 +103,7 @@ selected_player = ""
 def _get_seasons():
     mseasons = _get_csv_file("MDataFiles_Stage2/MSeasons.csv")
     seasons = mseasons['Season'].unique()
+    seasons = [2015, 2016, 2017, 2018, 2019, 2020] # limited 
     return seasons
 
 def _get_teams(season):
@@ -204,12 +229,46 @@ def _get_predicted_winners():
 def _get_predictions_data(season=selected_season):
     actual = _get_actual_winners()
     predictions = _get_predicted_winners()
-    predicted_actual = pd.merge(actual, predictions, on=['Team1','Team2', 'Season', 'DayNum'])
+    predicted_actual = pd.merge(predictions, actual, on=['Team1','Team2', 'Season', 'DayNum'])
+    mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
+    predicted_actual['Team1Name'] = predicted_actual.merge(mteams,
+              how='left',
+              left_on='Team1',
+              right_on='TeamID')['TeamName']
+    predicted_actual['Team2Name'] = predicted_actual.merge(mteams,
+              how='left',
+              left_on='Team2',
+              right_on='TeamID')['TeamName']
     if season:
         predicted_actual = predicted_actual.loc[predicted_actual['Season'] == season]
     predicted_actual_correct = predicted_actual.loc[predicted_actual['Won_actual'] == predicted_actual['Won_prediction']]
     predicted_actual_wrong = predicted_actual.loc[predicted_actual['Won_actual'] != predicted_actual['Won_prediction']]
     return predicted_actual
+
+def _get_predictions_list(season):
+    predictions = _get_predictions_data(season)[:3]
+    predictions = predictions.T.to_dict().values()
+    prediction_components = _get_prediction_component(predictions)
+    return prediction_components
+
+def _get_prediction_component(predictions=[]):
+    return [html.Div(className="level box", children=[
+                html.Div(className="level-item", children=[
+                    html.Div(className="level", children=[
+                        html.Div(className="level-item", children=[
+                            html.Sup(className="is-size-6", children=f"{round(pred['Team 1 Win percentage'], 2)}%"),
+                            html.H3(className="ml-5", children=pred['Team1Name']),
+                        ]),
+                        html.Div(className="level-item", children=[
+                            html.Span(className="circle circle--gray", children='vs')
+                        ]),
+                        html.Div(className="level-item", children=[
+                            html.H3(className="has-text-weight-bold mr-5", children=pred['Team2Name']),
+                            html.Sup(className="is-size-6", children=f"{round(pred['Team 2 Win percentage'], 2)}%")
+                        ]),
+                    ])
+                ])
+            ]) for pred in predictions]
     
 '''
 ===================================================CALLBACKS================================================
@@ -219,6 +278,8 @@ def _get_predictions_data(season=selected_season):
     Output(component_id='season-year', component_property='children'),
     Output(component_id='most-tournament-wins-chart', component_property='figure'),
     Output(component_id='event-statistics-list', component_property='children'),
+    Output(component_id='top-winner-predictions-list', component_property='children'),
+    Output(component_id='area-bar-chart', component_property='figure'),
     Output(component_id='team-dropdown', component_property='options'),
     Output(component_id='team-dropdown', component_property='value'),
     Output(component_id='player-dropdown', component_property='value'),
@@ -229,8 +290,11 @@ def _on_season_dropdown_change(value, children):
     selected_season = value
     _team_options = _get_teams(value)
     _most_tournament_wins_chart = _get_most_tournament_wins_chart(value)
-    _event_statistics = _get_events_statistics(value)
-    return [f'Season {value}', _most_tournament_wins_chart,  _event_statistics, _team_options, '', '']
+    # _events_statistics = _get_events_statistics(value) # will get killed because it consumes too much ram 
+    _events_statistics = []
+    _predictions = _get_predictions_list(value)
+    _area_bar_chart = _get_area_bar_chart(value)
+    return [f'Season {value}', _most_tournament_wins_chart,  _events_statistics, _predictions, _area_bar_chart, _team_options, '', '']
 
 
 @dash_app.callback(
@@ -247,7 +311,6 @@ def _on_team_dropdown_change(value):
         print("team selected----------------------------------------")
         mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
         team_id = mteams.loc[mteams['TeamName'] == value]
-        print(mteams.loc[mteams['TeamName'] == value])
         _player_options = _get_players(team_id['TeamID'].values[0])
         return _player_options
 
@@ -332,7 +395,7 @@ _body_stats_row = html.Div(className="columns is-multiline", children=[
             html.Div(className="heading", children="Most Championship Wins All Time"),
             html.Div(className="level", children=[
                 html.Div(className="level-item", children=[
-                    dcc.Graph(id="most-championship-wins-chart", figure=_get_most_championship_wins_chart(None))
+                    dcc.Graph(id="most-championship-wins-chart", figure=_get_most_championship_wins_chart(selected_season))
                 ])
             ])
         ]),
@@ -341,17 +404,7 @@ _body_stats_row = html.Div(className="columns is-multiline", children=[
         html.Div(className="box", children=[
             html.Div(className="heading", children="Event Statistics"),
             html.Br(),
-            html.Div(id="event-statistics-list", children=[
-                html.Div(className="level box", children=[
-                    html.Div(className="level-left", children=[
-                        html.Label(className='mr-2',children='1'),
-                        html.H2("event name"),
-                    ]),
-                    html.Div(className="level-right", children=[
-                        html.Label("90"),
-                    ])
-                ])
-            ])
+            html.Div(id="event-statistics-list", children=[])
         ]),
     ])
 ])
@@ -361,40 +414,7 @@ _body_custom_row = html.Div(className="columns is-multiline", children=[
         html.Div(className="box", children=[
             html.Div(className="heading", children="Top Winner Predictions"),
             html.Br(),
-            html.Div(className="level box", children=[
-                html.Div(className="level-item", children=[
-                    html.Div(className="level", children=[
-                        html.Div(className="level-item", children=[
-                            html.Sup(className="is-size-6", children="80%"),
-                            html.H2(className="ml-5", children="Team 1"),
-                        ]),
-                        html.Div(className="level-item", children=[
-                            html.Span(className="circle circle--gray", children="vs")
-                        ]),
-                        html.Div(className="level-item", children=[
-                            html.H2(className="has-text-weight-bold mr-5", children="Team 1"),
-                            html.Sup(className="is-size-6", children="80%")
-                        ]),
-                    ])
-                ])
-            ]),
-            html.Div(className="level box", children=[
-                html.Div(className="level-item", children=[
-                    html.Div(className="level", children=[
-                        html.Div(className="level-item", children=[
-                            html.Sup(className="is-size-6", children="80%"),
-                            html.H2(className="ml-5", children="Team 1"),
-                        ]),
-                        html.Div(className="level-item", children=[
-                            html.Span(className="circle circle--blue", children="1 : 1")
-                        ]),
-                        html.Div(className="level-item", children=[
-                            html.H2(className="has-text-weight-bold mr-5", children="Team 1"),
-                            html.Sup(className="is-size-6", children="80%")
-                        ]),
-                    ])
-                ])
-            ]),
+            html.Div(id="top-winner-predictions-list", className="", children=[]),
         ]),
     ]),
     html.Div(className="column", children=[
@@ -435,7 +455,7 @@ _body_area_row = html.Div(className="columns", children=[
             html.Div(className="heading", children="Event area"),
             html.Div(className="level", children=[
                 html.Div(className="level-item", children=[
-                    dcc.Graph(figure=fig)
+                    dcc.Graph(id="area-bar-chart", figure=_get_area_bar_chart(selected_season))
                 ])
             ])
         ]),
@@ -470,9 +490,6 @@ app = dash_app.server.wsgi_app
 
 
 if __name__ == '__main__':
-    selected_season = 2020
-    _on_season_dropdown_change(2020, [])
-    _predictions = _get_predictions_data(2019)
-    print(_predictions)
-    print(_on_player_dropdown_change("Alex Austin", "Illinois"))
+    selected_season = 2019
+    print(_on_season_dropdown_change(2019, []))
     dash_app.run_server(debug=True)
