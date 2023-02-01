@@ -19,6 +19,13 @@ dash_app = Dash(__name__, suppress_callback_exceptions=True)
 AWS_S3_BUCKET_SRC = "march-madness-src"
 FILE_KEY_PATH_SRC = "MDataFiles_Stage2/MSecondaryTourneyTeams.csv"
 s3_client = boto3.client("s3")
+event_seasons = [2015, 2016, 2017, 2018, 2019]
+used_seasons = event_seasons
+is_all_time = False
+limited_memory=True
+
+if limited_memory:
+    used_seasons = used_seasons[len(used_seasons)-2:]
 
 def _get_csv_file(file_key_path_src=FILE_KEY_PATH_SRC, aws_s3_bucket_src=AWS_S3_BUCKET_SRC):
     response = s3_client.get_object(Bucket=aws_s3_bucket_src, Key=file_key_path_src)
@@ -32,6 +39,17 @@ def _get_csv_file(file_key_path_src=FILE_KEY_PATH_SRC, aws_s3_bucket_src=AWS_S3_
         print(f"Unsuccessful S3 get_object response. Status - {status}")
     return df
 
+
+def _get_mevents(season):
+    mens_events = []
+    seasons = used_seasons
+    if season and season in used_seasons:
+        seasons = [season]
+    for year in seasons: 
+        mens_events.append(_get_csv_file(f'2020DataFiles/2020-Mens-Data/MEvents{year}.csv'))
+    mevents = pd.concat(mens_events)
+    return mevents
+
 '''
 ===================================================CHARTS================================================
 '''
@@ -41,22 +59,29 @@ df = px.data.iris()
 fig = px.scatter(df, x="sepal_width", y="sepal_length")
 
 
+mevents = _get_mevents(None)
+mseasons = _get_csv_file("MDataFiles_Stage2/MSeasons.csv")
+mregularseasons = _get_csv_file("MDataFiles_Stage2/MRegularSeasonCompactResults.csv")
+mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
+mplayers = _get_csv_file("2020DataFiles/2020-Mens-Data/MPlayers.csv")
+predictions = _get_csv_file("winner_predictor/predictions/MatchPredictions.csv", "march-madness-models")
+team_data = _get_csv_file("winner_predictor/supplementary_data/TeamData.csv", "march-madness-models")
+mtourney_detailed_results = _get_csv_file('2020DataFiles/2020-Mens-Data/MDataFiles_Stage1/MNCAATourneyDetailedResults.csv')
+mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
+mtourney_results = _get_csv_file("MDataFiles_Stage2/MNCAATourneyCompactResults.csv")
+
+
 def _get_most_tournament_wins_chart(season):
-    mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
-    mtourney_results = _get_csv_file("MDataFiles_Stage2/MNCAATourneyCompactResults.csv")
     wteam = mtourney_results.rename(columns={'WTeamID':'TeamID'})
     if season:
         wteam = wteam.loc[wteam['Season'] == season]
     wteam_merged =  wteam.merge(mteams, on='TeamID').value_counts().groupby('TeamName').agg('count').to_frame('Count').reset_index()
     wteam_merged = wteam_merged.sort_values(by="Count", ascending=False)[:5]
     fig = px.bar(wteam_merged, x="TeamName", y='Count')
-    fig.show()
     return fig
 
 
 def _get_most_championship_wins_chart(season):
-    mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
-    mtourney_results = _get_csv_file("MDataFiles_Stage2/MNCAATourneyCompactResults.csv")
     wteam = mtourney_results.rename(columns={'WTeamID':'TeamID'})
     # if season:
     #     wteam = wteam.loc[wteam['Season'] == season]
@@ -65,7 +90,6 @@ def _get_most_championship_wins_chart(season):
     wteam_merged = wteam_merged.value_counts().groupby('TeamName').agg('count').to_frame('Count').reset_index()
     wteam_merged = wteam_merged.sort_values(by="Count", ascending=False)[:5]
     fig = px.bar(wteam_merged, x="TeamName", y='Count')
-    fig.show()
     return fig
 
 def _get_area_bar_chart(season):
@@ -83,12 +107,16 @@ def _get_area_bar_chart(season):
                 11: 'outside left',
                 12: 'outside left wing',
                 13: 'backcourt'}
-    mevents = _get_mevents(season)
-    mevents['AreaName'] = mevents['Area'].map(area_mapping)
-    mevents = mevents.value_counts().groupby('AreaName').agg('count').to_frame('Count').reset_index()
-    mevents = mevents.sort_values(by="Count", ascending=False)[:5]
-    fig = px.bar(mevents, x="AreaName", y='Count')
-    fig.show()
+    mevents_area = mevents
+    if season and season in used_seasons:
+        mevents_area = mevents_area.loc[mevents_area['Season'] == season]
+        is_all_time = False
+    else:
+        is_all_time = True
+    mevents_area['AreaName'] = mevents_area['Area'].map(area_mapping)
+    mevents_area = mevents_area.value_counts().groupby('AreaName').agg('count').to_frame('Count').reset_index()
+    mevents_area = mevents_area.sort_values(by="Count", ascending=False)[:5]
+    fig = px.bar(mevents_area, x="AreaName", y='Count')
     return fig
 
 
@@ -100,15 +128,13 @@ selected_season = ""
 selected_team = ""
 selected_player = ""
 
+
 def _get_seasons():
-    mseasons = _get_csv_file("MDataFiles_Stage2/MSeasons.csv")
     seasons = mseasons['Season'].unique()
     seasons = [2015, 2016, 2017, 2018, 2019, 2020] # limited 
     return seasons
 
 def _get_teams(season):
-    mregularseasons = _get_csv_file("MDataFiles_Stage2/MRegularSeasonCompactResults.csv")
-    mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
     mregularseasons_teamids = mregularseasons['WTeamID'].combine_first(mregularseasons['LTeamID'])
     mregularseasons['TeamID'] = mregularseasons_teamids
     mregularseasons_merged = mregularseasons.merge(mteams, on='TeamID')
@@ -117,16 +143,20 @@ def _get_teams(season):
     return teams
 
 def _get_players(team_id):
-    mplayers = _get_csv_file("2020DataFiles/2020-Mens-Data/MPlayers.csv")
-    mplayers = mplayers.loc[mplayers['TeamID'] == team_id]
-    players = mplayers['FirstName']+" "+mplayers['LastName']
+    mplayers_teamid = mplayers.loc[mplayers['TeamID'] == team_id]
+    players = mplayers_teamid['FirstName']+" "+mplayers_teamid['LastName']
     return players
 
 def _get_events_statistics(season):    
-    mevents = _get_mevents(season)
-    mevents = mevents.value_counts().groupby('EventType').agg('count').to_frame('Count').reset_index()
-    mevents= mevents.sort_values(by='Count', ascending=False)[:5]
-    events = dict(zip(mevents.EventType, mevents.Count))
+    mevents_statistics = mevents
+    if season and season in used_seasons:
+        mevents_statistics = mevents_statistics.loc[mevents_statistics['Season'] == season]
+        is_all_time = False
+    else:
+        is_all_time = True
+    mevents_statistics = mevents_statistics.value_counts().groupby('EventType').agg('count').to_frame('Count').reset_index()
+    mevents_statistics= mevents_statistics.sort_values(by='Count', ascending=False)[:5]
+    events = dict(zip(mevents_statistics.EventType, mevents_statistics.Count))
     stats = [ _get_event_statistic_component(evKey, events[evKey]) for evKey in events.keys()]
     return stats
 
@@ -141,10 +171,14 @@ def _get_event_statistic_component(event, count):
         ])
     ])
 
-def _get_player_most_events(player_id, season=selected_season):    
-    mevents = _get_mevents(season)
-    mplayers = _get_csv_file(f'2020DataFiles/2020-Mens-Data/MPlayers.csv')
-    mevents_merged = mevents.merge(mplayers,
+def _get_player_most_events(player_id, season=selected_season): 
+    mevents_most = mevents
+    if season and season in used_seasons:
+        mevents_most = mevents_most.loc[mevents_most['Season'] == season]
+        is_all_time = False
+    else:
+        is_all_time = True
+    mevents_merged = mevents_most.merge(mplayers,
               how='left',
               left_on='EventPlayerID',
               right_on='PlayerID')
@@ -153,23 +187,15 @@ def _get_player_most_events(player_id, season=selected_season):
     mevents_merged= mevents_merged.sort_values(by='Count', ascending=False)[:5]
     event_types = list(mevents_merged['EventType'])
     return event_types
-
-def _get_mevents(season, limited_memory=True):
-    mens_events = []
-    event_seasons = [2015, 2016, 2017, 2018, 2019]
-    if season and season in event_seasons:
-        event_seasons = [season]
-    if limited_memory:
-        event_seasons = [event_seasons[0]]
-    for year in event_seasons: 
-        mens_events.append(_get_csv_file(f'2020DataFiles/2020-Mens-Data/MEvents{year}.csv'))
-    mevents = pd.concat(mens_events)
-    return mevents
     
 def _get_player_least_events(player_id, season=selected_season):
-    mevents = _get_mevents(season)
-    mplayers = _get_csv_file(f'2020DataFiles/2020-Mens-Data/MPlayers.csv')
-    mevents_merged = mevents.merge(mplayers,
+    mevents_least = mevents
+    if season and season in used_seasons:
+        mevents_least = mevents_least.loc[mevents_least['Season'] == season]
+        is_all_time = False
+    else:
+        is_all_time = True
+    mevents_merged = mevents_least.merge(mplayers,
               how='left',
               left_on='EventPlayerID',
               right_on='PlayerID')
@@ -180,9 +206,13 @@ def _get_player_least_events(player_id, season=selected_season):
     return event_types
 
 def _get_player_num_events(player_id, season=selected_season):
-    mevents = _get_mevents(season)
-    mplayers = _get_csv_file(f'2020DataFiles/2020-Mens-Data/MPlayers.csv')
-    mevents_merged = mevents.merge(mplayers,
+    mevents_num = mevents
+    if season and season in used_seasons:
+        mevents_num = mevents_num.loc[mevents_num['Season'] == season]
+        is_all_time = False
+    else:
+        is_all_time = True
+    mevents_merged = mevents_num.merge(mplayers,
               how='left',
               left_on='EventPlayerID',
               right_on='PlayerID')
@@ -193,8 +223,8 @@ def _get_player_num_events(player_id, season=selected_season):
 
 def _get_actual_winners():
     games_stats = []
-    mtourney_detailed_results = _get_csv_file('2020DataFiles/2020-Mens-Data/MDataFiles_Stage1/MNCAATourneyCompactResults.csv')
-    for row in mtourney_detailed_results.to_dict('records'):
+    mtourney_results_winners = mtourney_results
+    for row in mtourney_results_winners.to_dict('records'):
         game = {}
         game['Season'] =  row['Season']
         game['DayNum'] = row['DayNum']
@@ -220,17 +250,15 @@ def _get_actual_winners():
     return actual
 
 def _get_predicted_winners():
-    predictions = _get_csv_file("winner_predictor/predictions/MatchPredictions.csv", "march-madness-models")
-    team_data = _get_csv_file("winner_predictor/supplementary_data/TeamData.csv", "march-madness-models")
-    predictions['Won_prediction'] = predictions['Team 1 Win percentage'] > predictions['Team 2 Win percentage']
-    predictions['Won_prediction'] = predictions['Won_prediction'].astype(int)
-    return predictions
+    predictions_clone = predictions
+    predictions_clone['Won_prediction'] = predictions_clone['Team 1 Win percentage'] > predictions_clone['Team 2 Win percentage']
+    predictions_clone['Won_prediction'] = predictions_clone['Won_prediction'].astype(int)
+    return predictions_clone
 
 def _get_predictions_data(season=selected_season):
-    actual = _get_actual_winners()
-    predictions = _get_predicted_winners()
-    predicted_actual = pd.merge(predictions, actual, on=['Team1','Team2', 'Season', 'DayNum'])
-    mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
+    actual_clone = _get_actual_winners()
+    predictions_clone = _get_predicted_winners()
+    predicted_actual = pd.merge(predictions_clone, actual_clone, on=['Team1','Team2', 'Season', 'DayNum'])
     predicted_actual['Team1Name'] = predicted_actual.merge(mteams,
               how='left',
               left_on='Team1',
@@ -246,12 +274,12 @@ def _get_predictions_data(season=selected_season):
     return predicted_actual
 
 def _get_predictions_list(season):
-    predictions = _get_predictions_data(season)[:3]
-    predictions = predictions.T.to_dict().values()
-    prediction_components = _get_prediction_component(predictions)
+    predictions_list = _get_predictions_data(season)[:3]
+    predictions_list = predictions_list.T.to_dict().values()
+    prediction_components = _get_prediction_component(predictions_list)
     return prediction_components
 
-def _get_prediction_component(predictions=[]):
+def _get_prediction_component(predictions_list=[]):
     return [html.Div(className="level box", children=[
                 html.Div(className="level-item", children=[
                     html.Div(className="level", children=[
@@ -268,7 +296,7 @@ def _get_prediction_component(predictions=[]):
                         ]),
                     ])
                 ])
-            ]) for pred in predictions]
+            ]) for pred in predictions_list]
     
 '''
 ===================================================CALLBACKS================================================
@@ -290,8 +318,7 @@ def _on_season_dropdown_change(value, children):
     selected_season = value
     _team_options = _get_teams(value)
     _most_tournament_wins_chart = _get_most_tournament_wins_chart(value)
-    # _events_statistics = _get_events_statistics(value) # will get killed because it consumes too much ram 
-    _events_statistics = []
+    _events_statistics = _get_events_statistics(value) # will get killed because it consumes too much ram 
     _predictions = _get_predictions_list(value)
     _area_bar_chart = _get_area_bar_chart(value)
     return [f'Season {value}', _most_tournament_wins_chart,  _events_statistics, _predictions, _area_bar_chart, _team_options, '', '']
@@ -328,18 +355,16 @@ def _on_player_dropdown_change(value, selected_team):
         return dash.no_update
     else:
         print("player selected----------------------------------------")
-        mteams = _get_csv_file("MDataFiles_Stage2/MTeams.csv")
-        mplayers = _get_csv_file("2020DataFiles/2020-Mens-Data/MPlayers.csv")
-
-        mplayers = mplayers.merge(mteams, on="TeamID")        
-        mplayers = mplayers.loc[mplayers['TeamName'] == selected_team]
-        mplayers['FullName'] = mplayers['FirstName']+" "+mplayers['LastName']
-        player_id = mplayers.loc[mplayers['FullName'] == value]['TeamID'].values[0]
+        mplayers_clone = mplayers.merge(mteams, on="TeamID")        
+        mplayers_clone = mplayers_clone.loc[mplayers_clone['TeamName'] == selected_team]
+        mplayers_clone['FullName'] = mplayers_clone['FirstName']+" "+mplayers_clone['LastName']
+        player_id = mplayers_clone.loc[mplayers_clone['FullName'] == value]['TeamID'].values[0]
         
-        most_event = _get_player_most_events(player_id, selected_season)[0]
-        least_event = _get_player_least_events(player_id, selected_season)[0]
+        most_event = _get_player_most_events(player_id, selected_season)
+        least_event = _get_player_least_events(player_id, selected_season)
         num_event = _get_player_num_events(player_id, selected_season)
         
+        print(most_event, least_event, num_event)
         return [most_event, least_event, num_event]
 
 
@@ -490,6 +515,4 @@ app = dash_app.server.wsgi_app
 
 
 if __name__ == '__main__':
-    selected_season = 2019
-    print(_on_season_dropdown_change(2019, []))
     dash_app.run_server(debug=True)
