@@ -380,7 +380,7 @@ def _on_player_dropdown_change(value, selected_team):
         mplayers_clone = mplayers.merge(mteams, on="TeamID")        
         mplayers_clone = mplayers_clone.loc[mplayers_clone['TeamName'] == selected_team]
         mplayers_clone['FullName'] = mplayers_clone['FirstName']+" "+mplayers_clone['LastName']
-        player_id = mplayers_clone.loc[mplayers_clone['FullName'] == value]['TeamID'].values[0]
+        player_id = mplayers_clone.loc[mplayers_clone['FullName'] == value]['PlayerID'].values[0]
         player_events = _get_player_events(player_id, selected_season)
         most_event = (player_events.sort_values(by="Count", ascending=False)['Event Type'].values.tolist()[:5])
         if len(most_event):
