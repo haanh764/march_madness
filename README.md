@@ -201,6 +201,12 @@ assets
 `0.reset.css` resets the html to their default styling, while `bulma.min.css` adds simple styling by `Bulma`. Additional stylings were done in `2.app.css`.
 Almost all of the dashboard code was written in `app.py`. In this file, the previously transformed data were loaded, then processed a bit before being loaded as graph with `Plotly`.
 
+Dashboard Screenshots:
+
+![dash1.png](./img/dash1.png)
+![dash2.png](./img/dash2.png)
+![dash3.png](./img/dash3.png)
+
 ### 6. Machine Learning model
 
 #### Creating model
