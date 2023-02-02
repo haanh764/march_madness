@@ -38,7 +38,8 @@ march_madness
 │
 └───data_transformation
 │   │   transformation.py
-│   
+|
+└───assets
 │   
 └───ml
     │   handled_new_data.py
@@ -52,6 +53,7 @@ march_madness
 - `app.py`: main Dash app for dashboard, contains source code for creating charts
 - `data_transformation`: folder contains source code to transform source data into data needed for dashboard
 - `ml`: folder contains source code for ML model
+- `assets`: contains styling for dashboard
 
 ### 3. Install and Setup
 
