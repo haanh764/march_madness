@@ -1,6 +1,9 @@
 # Data Warehouse Project: March Madness Analytics Documentation
-##### 
-This repository contains source code for our ELT pipeline based on AWS. AWS S3 is used as data lake, there are 3 separated buckets serving: 
+
+#####
+
+This repository contains source code for our ELT pipeline based on AWS. AWS S3 is used as data lake, there are 3 separated buckets serving:
+
 - Source data
 - ML models and required data for ML model
 - Dashboard data and dashboard content
@@ -12,16 +15,20 @@ The whole architecture is as followed
 ![arch.png](./img/arch.png)
 
 ### 1. Main Components
+
 #### AWS Components
+
 - S3: used as data lake
 - Sagemaker: it is a fully managed Machine Learning service, which make it easier to build, train, and deploy ML model. We use it to build, train and deploy ML model to predict the winning probability of each basketball team. The result of probabilities will be shown on dashboard
-- Lambda: is AWS's function work as a service (FaaS) platform. We deploy our dashboard (a web application) serverless as an AWS Lambda function. The AWS Lambda function only runs when it is requested, and it could be scaled down or up based on demand. 
+- Lambda: is AWS's function work as a service (FaaS) platform. We deploy our dashboard (a web application) serverless as an AWS Lambda function. The AWS Lambda function only runs when it is requested, and it could be scaled down or up based on demand.
 
 #### Other components
+
 - Zappa: is a Python serverless microframework for AWS Lambda and API Gateway. It allows us to build, deploy, and manage serverless applications. We use it to deploy and manage our dashboard on AWS Lambda.
 - Dash + Plotly: Dash is a Python framework for building web-based analytical applications. It allows us to build interactive and responsive web applications using Python code. We use Dash server to build our dashboard as an wsgi application. Our charts are created with Plotly (a library provides interactive chart creation ability).
 
 ### 2. Project Structure
+
 ```
 march_madness
 │   README.md
@@ -57,14 +64,18 @@ march_madness
 - Export env path to virtual env path: `export VIRTUAL_ENV=/opt/conda/envs/march-madness` (the path depends on your computer, you can check it py using `which python`)
 
 #### Setup AWS:
+
 - Signup for AWS account and create AWS Access Keys (`access key id` and `secret access key`). Keep the created keys in `credentials` file, under `/home/.aws` folder (for Linux). The format of `credentials` file is as below (change `default` to your profile name)
+
 ```
 [default]
 aws_access_key_id = ************************
 aws_secret_access_key = ************************
 ```
+
 - Create groups for dashboard and for sagemaker
 - For each group create and assign inliine policy to it. For the custom policy of dashboard, add the policy to create, invoke, and execute Lambda function. The sample of custom policy for it is as below (the `***************` is the AWS account number):
+
 ```
 {
     "Version": "2012-10-17",
@@ -136,13 +147,16 @@ aws_secret_access_key = ************************
     ]
 }
 ```
+
 - Create user and attach user to the created group, this user will have the permission rules applied on dashboard application
 - Copy the attached user's keys to the `credentials` file as describe above.
 
 #### Setup Zappa
+
 - The setup for Zappa settings could be done by editing file `zappa_settings.json`. You can generate a new setting file by running command `zappa init` (remember to activate the virtual environment `venv` where zappa is installed first). Edit the `"profile_name": "default"` to the profile name corresponding to profile name was specified in `/.aws/credentials`
 - Change the `"aws_region"` to corresponding aws regions, also define `s3_bucket` as the bucket that will be used for keeping the dashboard content.
 - The format of `zappa_settings.json` is as below:
+
 ```
 {
     "dev": {
@@ -158,20 +172,37 @@ aws_secret_access_key = ************************
 ```
 
 #### Deploy Dashboard
+
 - To deploy the dashboard, run command `zappa deploy dev`
 - Or, after make change in the dashboard, to re-deploy the dashboard, run the command `zappa update dev`
 - Check this link to see the update dashboard: `https://z8eqecfs2f.execute-api.eu-central-1.amazonaws.com/dev`
 
-
 ### 4. Data Transformation
+
 To transform source files before analysis run `transformation.py` file in the data_transformation folder. Running this script requires providing credentials for boto3 connection. This script will load data from `march-madness-src` bucket and prepare it for usage in the dashboard scripts. It will change attributes and values to human readable strings and clean data, by checking and replacing any null or NaN values. Data transformation is very memory intensive, and will fail if there isn't enough memory (~8GB).
 
 ### 5. Dashboard
---- To be filled ----
+
+The dashboard was created with the help of `Dash` library from `Plotly`. This library transforms `Python` code to interactive dashboard based on the `React` framework. The dashboard is later customized with the help of `Bulma` CSS Framework to add simple styling. The structure is as below:
+
+```
+app.py
+assets
+    images
+        logo.png
+    0.reset.css
+    1.bulma.min.css
+    2.app.css
+    app.js
+```
+
+`0.reset.css` resets the html to their default styling, while `bulma.min.css` adds simple styling by `Bulma`. Additional stylings were done in `2.app.css`.
+Almost all of the dashboard code was written in `app.py`. In this file, the previously transformed data were loaded, then processed a bit before being loaded as graph with `Plotly`.
 
 ### 6. Machine Learning model
 
 #### Creating model
+
 To create a new model, it is necessary to run train.py script located in ml folder. Note that running this script requires providing credentials for boto3 connection. The script will fetch result files from `march-madness-src` bucket and divide the data so that all years before 2006 are used just as data aggregation about teams the last four years are for validation and testing. Note that the code is by default run on a GPU and will fail if no GPU instance exists. Running this code will generate a model checkpoint, a scaler that should be used for new data, as well as a new file that contains data aggregated about all matches the model had access to so far that needs to be used for predictions on any new matches. The script will also automatically generate predictions for the matches in the test set (last two years). Note that the winning/losing team is anonymized to Team 1 and Team 2 (assigned randomly) in the new file.
 
 #### Making predcitions on new data
