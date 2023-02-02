@@ -30,19 +30,21 @@ march_madness
 |   app.py
 │
 └───data_transformation
-│   │   ......py
+│   │   transformation.py
 │   
 │   
-└───prediction
-    │   .....py
-    │   .....py
+└───ml
+    │   handled_new_data.py
+    │   model.py
+    |   train.py
+    |   utils.py
 ```
 
 - `requirements.txt`: contains required libraries
 - `zappa_settings.json`: contains zappa config for dashbpard deployment on AWS Lambda
 - `app.py`: main Dash app for dashboard, contains source code for creating charts
 - `data_transformation`: folder contains source code to transform source data into data needed for dashboard
-- `prediction`: folder contains source code for ML model
+- `ml`: folder contains source code for ML model
 
 ### 3. Install and Setup
 
