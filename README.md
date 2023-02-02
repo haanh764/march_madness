@@ -162,7 +162,7 @@ aws_secret_access_key = ************************
 
 
 ### 4. Data Transformation
---- To be filled ----
+To transform source files before analysis run transformation.py file in the data_transformation folder. Running this script requires providing credentials for boto3 connection. This script will load data from march-madness-src bucket and prepare it for usage in the dashboard scripts. It will change attributes and values to human readable strings and clean data, by checking and replacing any null or NaN values. Data transformation is very memory intensive, and will fail if there isn't enough memory (~8GB).
 
 ### 5. Dashboard
 --- To be filled ----
